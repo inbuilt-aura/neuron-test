@@ -21,6 +21,10 @@ import type {
   Note,
   MilestoneResponse,
   GroupChat,
+  TextMessageParams,
+  FileMessageParams,
+  QuoteMessageParams,
+  AgreementMessageParams,
 } from "../../types";
 
 interface AddLeadResponse {
@@ -47,6 +51,22 @@ interface CompleteLastPaymentResponse {
   createdAt: string;
   modifiedAt: string;
   nextId: number | null;
+}
+
+export interface OnboardClientResponse {
+  userId: number;
+  mobileNumber: string;
+  salesPersonId: number;
+  countryCode: number;
+  onboarded: boolean;
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  passwordHash: string;
+  userType: string;
+  isVerified: boolean;
+  profilePic: string;
 }
 
 export interface PaymentTableItem {
@@ -99,12 +119,9 @@ export interface PaymentTableItem {
   projectCompletionDate?: string;
   pendingPayment?: number;
   lastPaymentDate?: string;
-  nextPaymentDate?: string; // Added this field for upcoming payments
+  nextPaymentDate?: string;
 }
 
-// interface UpdateLastPaymentRequest {
-//   paymentDate: string;
-// }
 interface UpdateLastPaymentResponse {
   id: number;
   amount: number;
@@ -140,6 +157,52 @@ interface ProjectShort {
     email: string;
   };
   status: string;
+}
+
+interface TncTemplate {
+  id: number;
+  name: string;
+  common_file: {
+    name: string;
+    size: number;
+    url: string;
+  };
+}
+
+interface SendTncRequest {
+  tnc_id: number;
+}
+
+interface SendTncResponse {
+  msg_params: {
+    name: string;
+    size: number;
+    url: string;
+    mimetype: string;
+  };
+  msg_type: "file";
+  type: "personal";
+  sent_by: number;
+  ref_id: string;
+}
+
+// Request interface for adding a quote to a chat
+export interface AddChatQuoteRequest {
+  amount: number;
+  requirement: string;
+}
+
+export interface AddChatQuoteResponse {
+  msg_params: {
+    amount: number;
+    status: string;
+    requirement: string;
+    id: number;
+  };
+  msg_type: "quote";
+  type: "personal" | "public" | "group";
+  sent_by: number;
+  ref_id: string;
 }
 
 export const salesApiSlice = createApi({
@@ -193,8 +256,8 @@ export const salesApiSlice = createApi({
     >({
       query: (userId) => `/sales/${userId}/leads/stats`,
     }),
-    fetchLeads: builder.query<Lead[], void>({
-      queryFn: async (_, { getState }, __, baseQuery) => {
+    fetchLeads: builder.query<Lead[], { recent?: boolean } | void>({
+      queryFn: async (params, { getState }, __, baseQuery) => {
         const state = getState() as RootState;
         const userId = state.auth.user?.id;
 
@@ -210,6 +273,7 @@ export const salesApiSlice = createApi({
         const result = await baseQuery({
           url: `/sales/${userId}/leads`,
           method: "GET",
+          params: params || {}, // Pass params like recent=true if provided
         });
 
         if (result.error) {
@@ -277,7 +341,6 @@ export const salesApiSlice = createApi({
         return { data: { success: true, id: leadId } };
       },
     }),
-    //fetch client data
     fetchclients: builder.query<Client[], string>({
       query: (userId) => ({
         url: `/sales/${userId}/clients`,
@@ -294,9 +357,6 @@ export const salesApiSlice = createApi({
         method: "GET",
       }),
     }),
-
-    //create project
-
     createProject: builder.mutation<
       Project,
       { userId: string; projectData: ProjectFormData }
@@ -307,7 +367,6 @@ export const salesApiSlice = createApi({
         body: projectData,
       }),
     }),
-
     fetchForwardProjects: builder.query({
       query: ({ userId, projectType }) => ({
         url: `/sales/${userId}/projects`,
@@ -318,7 +377,6 @@ export const salesApiSlice = createApi({
         },
       }),
     }),
-
     fetchProjectNotes: builder.query<
       Note[],
       { userId: string; projectId: string }
@@ -326,7 +384,6 @@ export const salesApiSlice = createApi({
       query: ({ userId, projectId }) =>
         `/sales/${userId}/projects/${projectId}/notes`,
     }),
-
     addProjectNote: builder.mutation<
       Note,
       { userId: string; projectId: string; note: string }
@@ -337,7 +394,6 @@ export const salesApiSlice = createApi({
         body: { note },
       }),
     }),
-
     fetchFastTrackProjects: builder.query({
       query: (userId) =>
         `/sales/${userId}/projects?projectType=FAST_TRACK&status=APPROVED`,
@@ -388,18 +444,6 @@ export const salesApiSlice = createApi({
         method: "GET",
       }),
     }),
-    // fetchProjectSummary: builder.query({
-    //   query: ({
-    //     userId,
-    //     projectId,
-    //   }: {
-    //     userId: string;
-    //     projectId: string;
-    //   }) => ({
-    //     url: `/sales/${userId}/projects/${projectId}`,
-    //     method: "GET",
-    //   }),
-    // }),
     updatepayment: builder.mutation({
       query: ({
         userId,
@@ -425,8 +469,6 @@ export const salesApiSlice = createApi({
         },
       }),
     }),
-
-    //add note
     addNote: builder.mutation({
       query: ({
         userId,
@@ -442,7 +484,6 @@ export const salesApiSlice = createApi({
         body: { note },
       }),
     }),
-    // Add quote and update quote
     addQuote: builder.mutation<QuoteResponse, AddQuoteRequest>({
       query: ({ userId, projectId, amount, requirement }) => ({
         url: `/sales/${userId}/projects/${projectId}/add-quote`,
@@ -470,8 +511,6 @@ export const salesApiSlice = createApi({
       query: ({ userId, projectId }) =>
         `/sales/${userId}/projects/${projectId}`,
     }),
-
-    // Milestones endpoints
     fetchProjectMilestones: builder.query<
       MilestoneResponse,
       { userId: string; projectId: string }
@@ -481,8 +520,6 @@ export const salesApiSlice = createApi({
         method: "GET",
       }),
     }),
-
-    // Payments endpoints
     fetchProjectPayments: builder.query<
       Payment[],
       { userId: string; projectId: string }
@@ -490,32 +527,134 @@ export const salesApiSlice = createApi({
       query: ({ userId, projectId }) =>
         `/sales/${userId}/projects/${projectId}/payments`,
     }),
-    //chat
     fetchChatLeads: builder.query<ChatLead[], void>({
       query: () => ({
         url: "/chat/leads",
         method: "GET",
       }),
       transformResponse: (response: ChatLead[]) => {
-        // Sort the leads by the most recent message
         return response.sort(
           (a, b) =>
             new Date(b.modified).getTime() - new Date(a.modified).getTime()
         );
       },
     }),
-
     fetchChatMessages: builder.query<ChatMessage[], string>({
       query: (chatId) => ({
         url: `/chat/messages?ref_id=${chatId}`,
         method: "GET",
       }),
       transformResponse: (response: ChatMessage[]) => {
-        // Sort messages in descending order (newest first)
-        return response.sort(
+        const validatedMessages = response.filter((msg) => {
+          if (!msg || typeof msg !== "object") return false;
+          if (
+            !("msg_type" in msg) ||
+            !["text", "file", "quote", "agreement"].includes(msg.msg_type) // Added "agreement"
+          )
+            return false;
+          if (
+            !("type" in msg) ||
+            !["personal", "public", "group"].includes(msg.type) // Updated to include "group"
+          )
+            return false;
+          if (
+            !("status" in msg) ||
+            !["sent", "delivered", "read"].includes(msg.status)
+          )
+            return false;
+          if (
+            !("ref_id" in msg) ||
+            !("sent_by" in msg) ||
+            !("created" in msg) ||
+            !("modified" in msg) ||
+            !("id" in msg)
+          )
+            return false;
+
+          if ("msg_params" in msg) {
+            const params = msg.msg_params;
+            if (msg.msg_type === "text" && (!params || !("text" in params)))
+              return false;
+            if (
+              msg.msg_type === "file" &&
+              (!params ||
+                !("url" in params) ||
+                !("size" in params) ||
+                !("mimetype" in params))
+            )
+              return false;
+            if (
+              msg.msg_type === "quote" &&
+              (!params ||
+                !("amount" in params) ||
+                !("status" in params) ||
+                !("requirement" in params) ||
+                !("id" in params))
+            )
+              return false;
+            if (
+              msg.msg_type === "agreement" &&
+              (!params ||
+                !("name" in params) ||
+                !("size" in params) ||
+                !("public_id" in params) ||
+                !("url" in params) ||
+                !("mimetype" in params) ||
+                !("signed" in params))
+            )
+              return false;
+          }
+          return true;
+        });
+        return validatedMessages.sort(
           (a, b) =>
-            new Date(b.created).getTime() - new Date(a.created).getTime()
+            new Date(a.created).getTime() - new Date(b.created).getTime()
         );
+      },
+    }),
+    sendChatMessage: builder.mutation<
+      { id: string; status: string },
+      {
+        chatId: string;
+        message?: string;
+        messageType: "text" | "file" | "quote" | "agreement";
+        messageParams?:
+          | TextMessageParams
+          | FileMessageParams
+          | QuoteMessageParams
+          | AgreementMessageParams;
+        type?: "personal" | "public" | "group";
+      }
+    >({
+      query: ({
+        chatId,
+        message,
+        messageType,
+        messageParams,
+        type = "personal",
+      }) => {
+        const payload: Partial<ChatMessage> = {
+          ref_id: chatId,
+          msg_type: messageType,
+          type,
+          status: "sent",
+        };
+
+        if (messageType === "text") {
+          payload.msg_params = message ? { text: message } : messageParams;
+        } else if (messageParams) {
+          payload.msg_params = messageParams;
+        } else {
+          throw new Error(
+            `Invalid messageParams for messageType: ${messageType}`
+          );
+        }
+
+        return {
+          url: `/chat/messages`,
+          method: "POST",
+          body: payload,
+        };
       },
     }),
     fetchSalesUsers: builder.query<UserProfile[], void>({
@@ -524,7 +663,6 @@ export const salesApiSlice = createApi({
         method: "GET",
       }),
     }),
-
     fetchGroupChats: builder.query<GroupChat[], void>({
       query: () => ({
         url: "/chat/groups",
@@ -537,9 +675,6 @@ export const salesApiSlice = createApi({
         );
       },
     }),
-
-    // forward to manager
-
     forwardToManager: builder.mutation<
       { success: boolean; message: string },
       { userId: string; projectId: string; managerId: string }
@@ -550,7 +685,6 @@ export const salesApiSlice = createApi({
         body: { manager_id: managerId },
       }),
     }),
-    // lead
     fetchTotalLeads: builder.query<number, string>({
       query: (userId) => `/sales/${userId}/leads`,
       transformResponse: (response: Lead[]) => response.length,
@@ -559,15 +693,35 @@ export const salesApiSlice = createApi({
       query: (userId) => `/sales/${userId}/leads?today=true`,
       transformResponse: (response: Lead[]) => response.length,
     }),
-
     fetchNewLeads: builder.query<number, string>({
       query: (userId) => `/sales/${userId}/leads?recent=true`,
       transformResponse: (response: Lead[]) => response.length,
     }),
+    fetchPendingMessages: builder.query<Lead[], void>({
+      queryFn: async (_, { getState }, __, baseQuery) => {
+        const state = getState() as RootState;
+        const userId = state.auth.user?.id;
 
-    fetchPendingMessages: builder.query<number, string>({
-      query: (userId) => `/sales/${userId}/leads?pending=true`,
-      transformResponse: (response: Lead[]) => response.length,
+        if (!userId) {
+          return {
+            error: {
+              status: 401,
+              data: "User not authenticated",
+            } as FetchBaseQueryError,
+          };
+        }
+
+        const result = await baseQuery({
+          url: `/sales/${userId}/leads?pending=true`,
+          method: "GET",
+        });
+
+        if (result.error) {
+          return { error: result.error };
+        }
+
+        return { data: result.data as Lead[] };
+      },
     }),
     transferLead: builder.mutation<
       void,
@@ -579,29 +733,24 @@ export const salesApiSlice = createApi({
         body: { salesPersonId },
       }),
     }),
-
-    // payments
     fetchIncompletePayments: builder.query<
       PaymentTableItem[],
       { userId: string }
     >({
       query: ({ userId }) => `/sales/${userId}/payments?incomplete=true`,
     }),
-
     fetchCompletedPayments: builder.query<
       PaymentTableItem[],
       { userId: string }
     >({
       query: ({ userId }) => `/sales/${userId}/payments?completed=true`,
     }),
-
     fetchUpcomingPayments: builder.query<
       PaymentTableItem[],
       { userId: string }
     >({
       query: ({ userId }) => `/sales/${userId}/payments?upcoming=true`,
     }),
-    //project details and summary
     fetchProjectSummary: builder.query<
       ProjectSummary,
       { userId: string; projectId: string }
@@ -609,7 +758,6 @@ export const salesApiSlice = createApi({
       query: ({ userId, projectId }) =>
         `/sales/${userId}/projects/${projectId}/summary`,
     }),
-
     fetchProjectsShort: builder.query<
       ProjectShort[],
       { userId: string; clientId: string }
@@ -617,7 +765,6 @@ export const salesApiSlice = createApi({
       query: ({ userId, clientId }) =>
         `/sales/${userId}/projects-short?clientId=${clientId}`,
     }),
-    // payments
     completeLastPayment: builder.mutation<
       CompleteLastPaymentResponse,
       { userId: string; projectId: string }
@@ -627,7 +774,6 @@ export const salesApiSlice = createApi({
         method: "PUT",
       }),
     }),
-
     updateLastPayment: builder.mutation<
       UpdateLastPaymentResponse,
       { userId: string; projectId: string; paymentDate: string }
@@ -636,6 +782,72 @@ export const salesApiSlice = createApi({
         url: `/sales/${userId}/projects/${projectId}/update-last-payment`,
         method: "PUT",
         body: { paymentDate },
+      }),
+    }),
+    onboardClient: builder.mutation<
+      OnboardClientResponse,
+      { salesId: string; leadId: string }
+    >({
+      query: ({ salesId, leadId }) => ({
+        url: `/sales/${salesId}/leads/${leadId}/onboard`,
+        method: "PUT",
+      }),
+    }),
+
+    //upload aggrement
+    uploadAgreement: builder.mutation<
+      ChatMessage,
+      {
+        chatId: string;
+        file: File;
+      }
+    >({
+      query: ({ chatId, file }) => {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        return {
+          url: `/chat/${chatId}/upload-agreement`,
+          method: "POST",
+          body: formData,
+        };
+      },
+    }),
+    // New endpoint: Fetch TNC Templates
+    fetchTncTemplates: builder.query<TncTemplate[], void>({
+      query: () => ({
+        url: "/chat/tnc-templates",
+        method: "GET",
+      }),
+      transformResponse: (response: TncTemplate[]) => {
+        console.log("Fetched TNC templates:", response);
+        return response;
+      },
+    }),
+
+    // New endpoint: Send TNC (updated to use SendTncRequest)
+    sendTnc: builder.mutation<
+      SendTncResponse,
+      { chatId: string; tncId: number }
+    >({
+      query: ({ chatId, tncId }) => ({
+        url: `/chat/${chatId}/send-tnc`,
+        method: "POST",
+        body: { tnc_id: tncId } as SendTncRequest, // Explicitly typed as SendTncRequest
+      }),
+      transformResponse: (response: SendTncResponse) => {
+        console.log("Send TNC response:", response);
+        return response;
+      },
+    }),
+    addChatQuote: builder.mutation<
+      AddChatQuoteResponse,
+      { chatId: string; quoteData: AddChatQuoteRequest }
+    >({
+      query: ({ chatId, quoteData }) => ({
+        url: `/chat/${chatId}/add-quote`,
+        method: "POST",
+        body: quoteData,
       }),
     }),
   }),
@@ -660,6 +872,7 @@ export const {
   useCreateProjectMutation,
   useFetchChatLeadsQuery,
   useFetchChatMessagesQuery,
+  useSendChatMessageMutation,
   useFetchProjectStatsQuery,
   useFetchForwardProjectsQuery,
   useFetchFastTrackProjectsQuery,
@@ -683,4 +896,9 @@ export const {
   useFetchProjectSummaryQuery,
   useCompleteLastPaymentMutation,
   useUpdateLastPaymentMutation,
+  useOnboardClientMutation,
+  useUploadAgreementMutation,
+  useFetchTncTemplatesQuery,
+  useSendTncMutation,
+  useAddChatQuoteMutation,
 } = salesApiSlice;

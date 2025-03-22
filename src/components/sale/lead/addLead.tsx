@@ -4,12 +4,7 @@ import type * as React from "react";
 import { useState, useCallback, useEffect } from "react";
 import { X, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -29,7 +24,6 @@ import {
 } from "@/src/store/sales/salesApiSlice";
 import { toast } from "react-hot-toast";
 import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
-
 
 interface CreateProjectModalProps {
   isOpen: boolean;

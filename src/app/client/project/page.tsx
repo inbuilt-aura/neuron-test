@@ -25,7 +25,7 @@ const DocumentCard = ({
   id: number;
 }) => (
   <Link href={`/client/project/${id}`} passHref>
-    <Card className="w-full h-auto p-8 bg-gray-50 hover:bg-gray-100 transition-colors duration-200 flex flex-col justify-start items-start">
+    <Card className="w-full h-auto p-8  bg-gray-50 hover:bg-gray-100 transition-colors duration-200 flex flex-col justify-start items-start">
       <div className="w-32 h-32 mb-6 bg-[#FFFFFF] rounded-xl border border-[#D7DFE6] flex items-center justify-center">
         <Image
           src="/doc.svg"
@@ -116,7 +116,7 @@ const Project = () => {
     selectedMetric === "Active Paper" ? activeProjects : completedProjects;
 
   return (
-    <div className="flex flex-col items-center p-6">
+    <div className="flex flex-col items-center p-6 sm:pt-4 pt-10">
       <main className="flex-1 w-full">
         <Header
           title={`Welcome Back, ${clientName} 👋`}

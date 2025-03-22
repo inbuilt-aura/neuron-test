@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X } from 'lucide-react';
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -53,17 +53,15 @@ export function AddQuoteModal({
       }).unwrap();
 
       console.log("Add Quote Response:", response);
-
-      onQuoteAdded(true);
-      toast.success("Quote added successfully");
+      onQuoteAdded(true); 
       onClose();
-    } catch (error: unknown) {
-      console.error("Failed to add quote:", error);
+    } catch (error) {
+      console.error("Failed to add quote:", JSON.stringify(error, null, 2));
       toast.error(
         (error as { data?: { message: string } })?.data?.message ||
           "Failed to add quote. Please try again."
       );
-      onQuoteAdded(false);
+      onQuoteAdded(false); 
     }
   };
 
@@ -148,4 +146,3 @@ export function AddQuoteModal({
     </div>
   );
 }
-

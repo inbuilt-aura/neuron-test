@@ -30,6 +30,7 @@ const Dashboard = () => {
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
   const [userName, setUserName] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [refetchTable, setRefetchTable] = useState<(() => void) | null>(null);
 
   const { data: leadStats, refetch: refetchLeadStats } = useFetchLeadStatsQuery(
     userId ?? "",
@@ -49,7 +50,6 @@ const Dashboard = () => {
     }
   }, [error]);
 
-  // Force refetch stats when needed
   const forceRefreshStats = () => {
     if (userId) {
       refetchLeadStats();
@@ -68,6 +68,9 @@ const Dashboard = () => {
     toast.success("Lead created successfully!");
     closeModal();
     forceRefreshStats();
+    if (refetchTable) {
+      refetchTable(); // Refetch 
+    }
   };
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,7 +114,6 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* Mobile view */}
       <div className="md:hidden p-4 pt-[100px]">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Leads</h2>
@@ -124,7 +126,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Search bar */}
       <div className="px-4 pb-4">
         <div className="relative w-full md:w-[25rem] ml-auto">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-[#8C8E90]" />
@@ -143,6 +144,7 @@ const Dashboard = () => {
         onLeadUpdate={forceRefreshStats}
         onLeadDelete={forceRefreshStats}
         onTransferSuccess={forceRefreshStats}
+        setRefetchTable={setRefetchTable} 
       />
 
       {isAddLeadModalOpen && (

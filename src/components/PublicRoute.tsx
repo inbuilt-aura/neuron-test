@@ -1,48 +1,58 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { useSelector } from "react-redux"
-import type { RootState } from "../store/store"
+import type React from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSelector } from "react-redux";
+import type { RootState } from "../store/store";
 
 interface PublicRouteProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
-  const router = useRouter()
-  const [isClient, setIsClient] = useState(false)
-  const isAuthenticated = useSelector((state: RootState) => {
-    console.log("Auth state:", state.auth)
-    return state.auth.isAuthenticated
-  })
-  const userType = useSelector((state: RootState) => state.auth.loginType)
+  const router = useRouter();
+  const [isClient, setIsClient] = useState(false);
+  const isAuthenticated = useSelector(
+    (state: RootState) => state.auth.isAuthenticated
+  );
+  const loginType = useSelector((state: RootState) => state.auth.loginType);
+  const user = useSelector((state: RootState) => state.auth.user); // Assuming user object contains designation
 
   useEffect(() => {
-    setIsClient(true)
-    console.log("PublicRoute mounted, isAuthenticated:", isAuthenticated, "userType:", userType)
-  }, [isAuthenticated, userType])
+    setIsClient(true);
+    console.log(
+      "PublicRoute mounted, isAuthenticated:",
+      isAuthenticated,
+      "loginType:",
+      loginType,
+      "user:",
+      user
+    );
+  }, [isAuthenticated, loginType, user]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      console.log("User is authenticated, redirecting...")
-      if (userType === "client") {
-        router.push("/client/project")
-      } else if (userType === "employee") {
-        router.push("/sale/leads")
+    if (isAuthenticated && isClient) {
+      console.log("User is authenticated, redirecting...");
+      if (loginType === "client") {
+        router.push("/client/project");
+      } else if (loginType === "employee") {
+        if (user?.designation === "MANAGER") {
+          router.push("/manager/projects");
+        } else {
+          router.push("/sales/leads");
+        }
       }
     }
-  }, [isAuthenticated, userType, router])
+  }, [isAuthenticated, loginType, user, router, isClient]);
 
   if (!isClient) {
-    return null
+    return null;
   }
 
-  console.log("PublicRoute rendering, children:", children)
+  console.log("PublicRoute rendering, children:", children);
 
-  return <>{children}</>
-}
+  return <>{children}</>;
+};
 
-export default PublicRoute
-
+export default PublicRoute;

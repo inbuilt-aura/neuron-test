@@ -128,7 +128,7 @@ export default function ClientCommunicationPage() {
   return (
     <div className="flex flex-col h-screen p-4 sm:pt-4 pt-20 sm:p-6 bg-white">
       <header className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold">Communication</h1>
+        <h1 className="text-2xl font-semibold">Chat Support</h1>
         <div className="flex gap-2">
           <Button
             variant="ghost"
@@ -163,16 +163,7 @@ export default function ClientCommunicationPage() {
         </div>
 
         {/* Filters */}
-        <div className="sm:w-64 sm:border-r px-4 sm:px-0 mt-2 sm:mt-0">
-          <div className="hidden sm:block p-4 border-b">
-            <h2 className="font-medium">Filters</h2>
-          </div>
-          <div className="flex sm:flex-col sm:border-b-0 bg-[#F5F1FF] rounded-lg p-1 sm:p-0 sm:bg-transparent sm:rounded-none">
-            <div className="flex-1 text-center sm:text-left px-4 py-2 cursor-pointer rounded-lg sm:rounded-none bg-white shadow-sm sm:shadow-none sm:bg-[#F5F1FF]">
-              <span className="text-[#6E56CF] font-medium">Leads</span>
-            </div>
-          </div>
-        </div>
+      
 
         <div className="flex-1 overflow-hidden flex flex-col mt-4 sm:mt-0">
           <div className="hidden sm:flex p-4 border-b justify-between items-center">

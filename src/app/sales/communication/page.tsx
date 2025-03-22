@@ -17,28 +17,43 @@ import {
 import type { ChatLead, GroupChat } from "../../../types";
 
 export default function CommunicationPage() {
-  const [activeFilter, setActiveFilter] = React.useState<"leads" | "clients">(
-    "leads"
-  );
+  const [activeFilter, setActiveFilter] = React.useState<"leads" | "clients">("leads");
   const [searchQuery, setSearchQuery] = React.useState("");
   const router = useRouter();
 
-  const { data: chatLeads, isLoading: isLeadsLoading } =
-    useFetchChatLeadsQuery();
-
-  const { data: groupChats, isLoading: isGroupChatsLoading } =
-    useFetchGroupChatsQuery();
+  const { data: chatLeads, isLoading: isLeadsLoading } = useFetchChatLeadsQuery();
+  const { data: groupChats, isLoading: isGroupChatsLoading } = useFetchGroupChatsQuery();
 
   const formatTime = (dateString: string) => {
     return format(new Date(dateString), "h:mm a");
   };
 
   const handleChatSelection = (chatId: string) => {
-    router.push(`/sale/communication/${chatId}`);
+    router.push(`/sales/communication/${chatId}`);
   };
 
   const getClientParticipant = (participants: ChatLead["participants"]) => {
     return participants.find((p) => p.user.role === "CLIENT");
+  };
+
+  // Helper function to get display text based on msg_type
+  const getMessageDisplayText = (
+    msg_type: string,
+    msg_params?: ChatLead["last_message"]["msg_params"] | GroupChat["last_message"]["msg_params"]
+  ): string => {
+    if (!msg_params) return "No message";
+
+    switch (msg_type) {
+      case "text":
+        return (msg_params as { text?: string }).text || "No message";
+      case "file":
+        const fileParams = msg_params as { filename?: string; name?: string; text?: string };
+        return fileParams.text || fileParams.filename || fileParams.name || "File shared";
+      case "quote":
+        return (msg_params as { requirement?: string }).requirement || "Quote sent";
+      default:
+        return "No message";
+    }
   };
 
   const renderLeadChats = () => {
@@ -77,12 +92,11 @@ export default function CommunicationPage() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 max-w-full sm:max-w-[80%]">
                   <span className="font-medium whitespace-nowrap">
-                    {clientParticipant.user.firstName}{" "}
-                    {clientParticipant.user.lastName}
+                    {clientParticipant.user.firstName} {clientParticipant.user.lastName}
                   </span>
                   {chat.last_message && (
                     <span className="text-gray-500 truncate text-sm">
-                      {chat.last_message.msg_params?.text || "No message"}
+                      {getMessageDisplayText(chat.last_message.msg_type, chat.last_message.msg_params)}
                     </span>
                   )}
                 </div>
@@ -121,7 +135,7 @@ export default function CommunicationPage() {
             <span className="font-medium">{groupChat.name}</span>
             {groupChat.last_message && (
               <span className="text-gray-500 truncate text-sm">
-                {groupChat.last_message.msg_params?.text || "No message"}
+                {getMessageDisplayText(groupChat.last_message.msg_type, groupChat.last_message.msg_params)}
               </span>
             )}
           </div>
@@ -148,25 +162,16 @@ export default function CommunicationPage() {
       <header className="flex justify-between items-center mb-6">
         <h1 className="text-xl sm:text-2xl font-semibold">Communication</h1>
         <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="bg-[#ECF1F4] rounded-lg p-2"
-          >
+          <Button variant="ghost" size="icon" className="bg-[#ECF1F4] rounded-lg p-2">
             <BellRing className="h-5 w-5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="bg-[#ECF1F4] rounded-lg p-2"
-          >
+          <Button variant="ghost" size="icon" className="bg-[#ECF1F4] rounded-lg p-2">
             <HelpCircle className="h-5 w-5" />
           </Button>
         </div>
       </header>
 
       <Card className="flex flex-col sm:flex-row flex-1 rounded-lg overflow-hidden h-[calc(100vh-120px)] border-0 sm:border">
-        {/* Mobile Search Bar */}
         <div className="p-4 block sm:hidden">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
@@ -180,7 +185,6 @@ export default function CommunicationPage() {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="sm:w-64 sm:border-r px-4 sm:px-0 mt-2 sm:mt-0">
           <div className="hidden sm:block p-4 border-b">
             <h2 className="font-medium">Filters</h2>
@@ -188,35 +192,21 @@ export default function CommunicationPage() {
           <div className="flex sm:flex-col sm:border-b-0 bg-[#F5F1FF] rounded-lg p-1 sm:p-0 sm:bg-transparent sm:rounded-none">
             <div
               className={`flex-1 text-center sm:text-left px-4 py-2 cursor-pointer rounded-lg sm:rounded-none ${
-                activeFilter === "leads"
-                  ? "bg-white shadow-sm sm:shadow-none sm:bg-[#F5F1FF]"
-                  : ""
+                activeFilter === "leads" ? "bg-white shadow-sm sm:shadow-none sm:bg-[#F5F1FF]" : ""
               }`}
               onClick={() => setActiveFilter("leads")}
             >
-              <span
-                className={`${
-                  activeFilter === "leads" ? "text-[#6E56CF]" : "text-gray-900"
-                } font-medium`}
-              >
+              <span className={`${activeFilter === "leads" ? "text-[#6E56CF]" : "text-gray-900"} font-medium`}>
                 Leads
               </span>
             </div>
             <div
               className={`flex-1 text-center sm:text-left px-4 py-2 cursor-pointer rounded-lg sm:rounded-none ${
-                activeFilter === "clients"
-                  ? "bg-white shadow-sm sm:shadow-none sm:bg-[#F5F1FF]"
-                  : ""
+                activeFilter === "clients" ? "bg-white shadow-sm sm:shadow-none sm:bg-[#F5F1FF]" : ""
               }`}
               onClick={() => setActiveFilter("clients")}
             >
-              <span
-                className={`${
-                  activeFilter === "clients"
-                    ? "text-[#6E56CF]"
-                    : "text-gray-900"
-                } font-medium`}
-              >
+              <span className={`${activeFilter === "clients" ? "text-[#6E56CF]" : "text-gray-900"} font-medium`}>
                 Clients
               </span>
             </div>
@@ -227,7 +217,6 @@ export default function CommunicationPage() {
           <div className="hidden sm:flex p-4 border-b justify-between items-center">
             <h2 className="font-medium">Chats</h2>
           </div>
-
           <div className="divide-y overflow-y-auto flex-1">
             {activeFilter === "leads" ? renderLeadChats() : renderGroupChats()}
           </div>

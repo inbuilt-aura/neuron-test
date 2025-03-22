@@ -1,3 +1,4 @@
+// lib/Providers.tsx
 "use client";
 
 import type React from "react";
@@ -5,7 +6,7 @@ import { useEffect } from "react";
 import { Provider, useSelector } from "react-redux";
 import { store } from "../store/store";
 import type { RootState } from "../store/store";
-// import { WebSocketProvider } from "../components/client/websocket-provider";
+import { SocketProvider } from "../lib/socket-context";
 
 const DebugComponent: React.FC = () => {
   const isAuthenticated = useSelector(
@@ -25,8 +26,10 @@ const DebugComponent: React.FC = () => {
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <Provider store={store}>
-      <DebugComponent />
-     {children}
+      <SocketProvider>
+        <DebugComponent />
+        {children}
+      </SocketProvider>
     </Provider>
   );
 }

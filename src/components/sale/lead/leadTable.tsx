@@ -39,10 +39,16 @@ import {
   useFetchLeadsQuery,
   useUpdateLeadMutation,
   useDeleteLeadMutation,
+  useOnboardClientMutation,
+  useFetchPendingMessagesQuery,
 } from "@/src/store/sales/salesApiSlice";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/src/store/store";
 import type { Lead } from "@/src/types";
+
+interface LeadWithMessage extends Lead {
+  message?: string;
+}
 
 interface UpdateLeadData {
   leadId: number;
@@ -65,6 +71,7 @@ interface LeadTableProps {
   onLeadUpdate: () => void;
   onLeadDelete: () => void;
   onTransferSuccess: () => void;
+  setRefetchTable?: (refetch: () => void) => void;
 }
 
 const LeadTable: FC<LeadTableProps> = ({
@@ -73,11 +80,35 @@ const LeadTable: FC<LeadTableProps> = ({
   onLeadUpdate,
   onLeadDelete,
   onTransferSuccess,
+  setRefetchTable,
 }) => {
   const userId = useSelector((state: RootState) => state.auth.user?.id);
-  const { data, isLoading, error, refetch } = useFetchLeadsQuery(undefined, {
-    skip: !userId,
+
+  const shouldFetchLeads = selectedMetric !== "Pending Messages" && !!userId;
+  const shouldFetchPendingMessages =
+    selectedMetric === "Pending Messages" && !!userId;
+
+  const {
+    data: leadsData,
+    isLoading: isLeadsLoading,
+    error: leadsError,
+    refetch: refetchLeads,
+  } = useFetchLeadsQuery(
+    selectedMetric === "New Leads" ? { recent: true } : undefined,
+    {
+      skip: !shouldFetchLeads,
+    }
+  );
+
+  const {
+    data: pendingMessagesData,
+    isLoading: isPendingMessagesLoading,
+    error: pendingMessagesError,
+    refetch: refetchPendingMessages,
+  } = useFetchPendingMessagesQuery(undefined, {
+    skip: !shouldFetchPendingMessages,
   });
+
   const [updateLead] = useUpdateLeadMutation();
   const [deleteLead] = useDeleteLeadMutation();
   const [currentPage, setCurrentPage] = useState(1);
@@ -88,31 +119,61 @@ const LeadTable: FC<LeadTableProps> = ({
   );
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  const refetchTable = useCallback(() => {
+    if (selectedMetric === "Pending Messages") {
+      refetchPendingMessages();
+    } else {
+      refetchLeads();
+    }
+  }, [selectedMetric, refetchLeads, refetchPendingMessages]);
+
+  useEffect(() => {
+    if (setRefetchTable) {
+      setRefetchTable(refetchTable);
+    }
+  }, [setRefetchTable, refetchTable]);
+
   const handleTransferSuccess = useCallback(() => {
-    refetch();
+    refetchTable();
     onTransferSuccess();
-  }, [refetch, onTransferSuccess]);
+  }, [refetchTable, onTransferSuccess]);
 
   useEffect(() => {
     if (userId) {
-      refetch();
+      refetchTable();
     }
-  }, [userId, refetch]);
+  }, [userId, selectedMetric, refetchTable]);
 
   const formatDate = useCallback((dateString: string) => {
     const date = parseISO(dateString);
     return format(date, "dd/MM/yyyy");
   }, []);
 
+  const data =
+    selectedMetric === "Pending Messages"
+      ? (pendingMessagesData as LeadWithMessage[] | undefined)
+      : (leadsData as Lead[] | undefined);
+
+  const isLoading =
+    selectedMetric === "Pending Messages"
+      ? isPendingMessagesLoading
+      : isLeadsLoading;
+  const error =
+    selectedMetric === "Pending Messages" ? pendingMessagesError : leadsError;
+
   const filteredLeads = useMemo(() => {
     if (!data) return [];
 
     return data
-      .filter((lead: Lead) => {
+      .filter((lead) => {
+        if (
+          selectedMetric === "Pending Messages" ||
+          selectedMetric === "New Leads"
+        )
+          return true;
+
         const metricsFilter = () => {
           switch (selectedMetric) {
-            case "New Leads":
-              return lead.status === false;
             case "Today's Follow Up":
               const today = new Date().toDateString();
               return new Date(lead.followUpDate).toDateString() === today;
@@ -131,7 +192,7 @@ const LeadTable: FC<LeadTableProps> = ({
         return metricsFilter() && searchFilter();
       })
       .sort(
-        (a: Lead, b: Lead) =>
+        (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
   }, [data, selectedMetric, searchQuery]);
@@ -172,7 +233,7 @@ const LeadTable: FC<LeadTableProps> = ({
         toast.success("Lead updated successfully");
         setIsEditModalOpen(false);
         setSelectedLead(null);
-        refetch();
+        refetchTable();
         onLeadUpdate();
       } catch (err: unknown) {
         const errorMessage =
@@ -186,7 +247,7 @@ const LeadTable: FC<LeadTableProps> = ({
     try {
       await deleteLead(leadId).unwrap();
       toast.success("Lead deleted successfully");
-      refetch();
+      refetchTable();
       onLeadDelete();
     } catch (err: unknown) {
       const errorMessage =
@@ -194,29 +255,6 @@ const LeadTable: FC<LeadTableProps> = ({
       toast.error(`Failed to delete the lead: ${errorMessage}`);
     }
   };
-
-  useEffect(() => {
-    if (data) {
-      data.forEach((lead: Lead) => {
-        console.log(`Lead ${lead.id}:`);
-        console.log(
-          `  followUpDate: ${lead.followUpDate}, formatted: ${formatDate(
-            lead.followUpDate
-          )}`
-        );
-        console.log(
-          `  createdAt: ${lead.createdAt}, formatted: ${formatDate(
-            lead.createdAt
-          )}`
-        );
-        console.log(
-          `  modifiedAt: ${lead.modifiedAt}, formatted: ${formatDate(
-            lead.modifiedAt
-          )}`
-        );
-      });
-    }
-  }, [data, formatDate]);
 
   if (isLoading) {
     return (
@@ -252,8 +290,12 @@ const LeadTable: FC<LeadTableProps> = ({
     return (
       <div className="text-center text-red-500 p-4">
         {"status" in error
-          ? `Error loading leads: ${error.status}`
-          : "Error loading leads."}
+          ? `Error loading ${
+              selectedMetric === "Pending Messages" ? "messages" : "leads"
+            }: ${error.status}`
+          : `Error loading ${
+              selectedMetric === "Pending Messages" ? "messages" : "leads"
+            }.`}
       </div>
     );
   }
@@ -278,7 +320,9 @@ const LeadTable: FC<LeadTableProps> = ({
                   Follow-up Date
                 </TableHead>
                 <TableHead className="py-3 px-4 text-left text-sm font-medium">
-                  Contact Details
+                  {selectedMetric === "Pending Messages"
+                    ? "Pending Messages"
+                    : "Contact Details"}
                 </TableHead>
                 <TableHead className="py-3 px-4 text-center text-sm font-medium">
                   Action
@@ -286,55 +330,69 @@ const LeadTable: FC<LeadTableProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {currentLeads.map((lead, index) => (
-                <TableRow key={lead.id}>
-                  <TableCell className="border-t-2 border-b-2 border-gray-300 text-center py-3 px-4">
-                    {startIndex + index + 1}
-                  </TableCell>
-                  <TableCell className="border-t-2 border-b-2 border-gray-300 py-3 px-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback>{`${lead.firstName[0]}${lead.lastName[0]}`}</AvatarFallback>
-                      </Avatar>
-                      <div className="font-medium">{`${lead.firstName} ${lead.lastName}`}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="border-t-2 border-b-2 border-gray-300 py-3 px-4">
-                    <span
-                      className="cursor-pointer text-gray-700 line-clamp-2 break-words"
-                      onClick={() =>
-                        openRequirementDialog(lead.requirements || "")
-                      }
-                    >
-                      {formatRequirement(
-                        lead.requirements || "No specific requirements provided"
+              {currentLeads.map((lead, index) => {
+                const leadWithMessage = lead as LeadWithMessage;
+                return (
+                  <TableRow key={lead.id}>
+                    <TableCell className="border-t-2 border-b-2 border-gray-300 text-center py-3 px-4">
+                      {startIndex + index + 1}
+                    </TableCell>
+                    <TableCell className="border-t-2 border-b-2 border-gray-300 py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>{`${lead.firstName[0]}${lead.lastName[0]}`}</AvatarFallback>
+                        </Avatar>
+                        <div className="font-medium">{`${lead.firstName} ${lead.lastName}`}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="border-t-2 border-b-2 border-gray-300 py-3 px-4">
+                      <span
+                        className="cursor-pointer text-gray-700 line-clamp-2 break-words"
+                        onClick={() =>
+                          openRequirementDialog(lead.requirements || "")
+                        }
+                      >
+                        {formatRequirement(
+                          lead.requirements ||
+                            "No specific requirements provided"
+                        )}
+                      </span>
+                    </TableCell>
+                    <TableCell className="border-t-2 border-b-2 border-gray-300 py-3 px-4">
+                      <div className="px-2 py-1 rounded-lg inline-block bg-red-100 text-red-700">
+                        {formatDate(lead.followUpDate)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="border-t-2 border-b-2 border-gray-300 py-3 px-4">
+                      {selectedMetric === "Pending Messages" ? (
+                        <div className="space-y-1">
+                          <div className="font-medium">
+                            {leadWithMessage.message || "No message"}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="font-medium">{`+${lead.countryCode} ${lead.mobileNumber}`}</div>
+                          <div className="text-sm text-gray-500">
+                            {lead.email}
+                          </div>
+                        </div>
                       )}
-                    </span>
-                  </TableCell>
-                  <TableCell className="border-t-2 border-b-2 border-gray-300 py-3 px-4">
-                    <div className="px-2 py-1 rounded-lg inline-block bg-red-100 text-red-700">
-                      {formatDate(lead.followUpDate)}
-                    </div>
-                  </TableCell>
-                  <TableCell className="border-t-2 border-b-2 border-gray-300 py-3 px-4">
-                    <div className="space-y-1">
-                      <div className="font-medium">{`+${lead.countryCode} ${lead.mobileNumber}`}</div>
-                      <div className="text-sm text-gray-500">{lead.email}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="border-t-2 border-b-2 border-gray-300 py-3 px-4 text-center">
-                    <ActionMenu
-                      selectedMetric={selectedMetric}
-                      lead={lead}
-                      openDetails={openDetails}
-                      setSelectedLead={setSelectedLead}
-                      setIsEditModalOpen={setIsEditModalOpen}
-                      handleDeleteLead={handleDeleteLead}
-                      setTransferLeadId={setTransferLeadId}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell className="border-t-2 border-b-2 border-gray-300 py-3 px-4 text-center">
+                      <ActionMenu
+                        selectedMetric={selectedMetric}
+                        lead={lead}
+                        openDetails={openDetails}
+                        setSelectedLead={setSelectedLead}
+                        setIsEditModalOpen={setIsEditModalOpen}
+                        handleDeleteLead={handleDeleteLead}
+                        setTransferLeadId={setTransferLeadId}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -353,7 +411,7 @@ const LeadTable: FC<LeadTableProps> = ({
           </PaginationPrevious>
 
           <div className="text-sm text-gray-700">
-            Page {currentPage} of {totalPages}
+            Page {currentPage} of {totalPages || 1}
           </div>
 
           <PaginationNext
@@ -361,9 +419,11 @@ const LeadTable: FC<LeadTableProps> = ({
               currentPage < totalPages && handlePageChange(currentPage + 1)
             }
             className={`border-2 border-gray-300 ${
-              currentPage === totalPages ? "cursor-not-allowed opacity-50" : ""
+              currentPage === totalPages || totalPages === 0
+                ? "cursor-not-allowed opacity-50"
+                : ""
             }`}
-            aria-disabled={currentPage === totalPages}
+            aria-disabled={currentPage === totalPages || totalPages === 0}
           >
             Next
           </PaginationNext>
@@ -433,6 +493,33 @@ const ActionMenu: FC<ActionMenuProps> = ({
   handleDeleteLead,
   setTransferLeadId,
 }) => {
+  const userId = useSelector((state: RootState) => state.auth.user?.id);
+  const [onboardClient] = useOnboardClientMutation();
+
+  const handleOnboardClient = async () => {
+    if (!userId) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    try {
+      const response = await onboardClient({
+        salesId: userId.toString(),
+        leadId: lead.id.toString(),
+      }).unwrap();
+
+      if (response.onboarded) {
+        toast.success("Client onboarded successfully");
+      } else {
+        toast.error("Client onboarding failed");
+      }
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : "An unknown error occurred";
+      toast.error(`Failed to onboard client: ${errorMessage}`);
+    }
+  };
+
   if (selectedMetric === "Pending Messages") {
     return (
       <a href="#" className="text-blue-600 hover:underline">
@@ -471,6 +558,12 @@ const ActionMenu: FC<ActionMenuProps> = ({
             >
               Transfer Lead
             </DropdownMenuItem>
+            {(selectedMetric === "Total Leads" ||
+              selectedMetric === "Today's Follow Up") && (
+              <DropdownMenuItem onClick={handleOnboardClient}>
+                Onboard Client
+              </DropdownMenuItem>
+            )}
           </>
         )}
       </DropdownMenuContent>

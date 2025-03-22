@@ -17,7 +17,9 @@ import {
   ShieldCheck,
   List,
   X,
+  Gear,
 } from "phosphor-react";
+import { LogOut } from "lucide-react";
 import {
   setProfile,
   setProfileLoading,
@@ -26,59 +28,32 @@ import {
 import { useGetUserProfileQuery } from "../../store/apiSlice";
 import type { RootState, AppDispatch } from "../../types";
 import { ProfileDialog } from "./update-profile";
-import { Gear } from "phosphor-react";
-import { LogOut } from "lucide-react";
 import { logout } from "@/src/store/authSlice";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import socketService from "../../lib/socket-service";
 
 const navigation = [
-  {
-    name: "Leads",
-    href: "/sale/leads",
-    icon: Scroll,
-  },
-  {
-    name: "Projects",
-    href: "/sale/project",
-    icon: Notepad,
-  },
-  {
-    name: "Communication",
-    href: "/sale/communication",
-    icon: ChatCircleDots,
-  },
-  {
-    name: "Payment",
-    href: "/sale/payment",
-    icon: CurrencyInr,
-  },
-  {
-    name: "Security",
-    href: "/sale/security",
-    icon: ShieldCheck,
-  },
+  { name: "Leads", href: "/sales/leads", icon: Scroll },
+  { name: "Projects", href: "/sales/project", icon: Notepad },
+  { name: "Communication", href: "/sales/communication", icon: ChatCircleDots },
+  { name: "Payment", href: "/sales/payment", icon: CurrencyInr },
+  { name: "Security", href: "/sales/security", icon: ShieldCheck },
 ] as const;
 
 const mobileNavigation = [
-  {
-    name: "Leads",
-    href: "/sale/leads",
-    icon: Scroll,
-  },
-  {
-    name: "Communication",
-    href: "/sale/communication",
-    icon: ChatCircleDots,
-  },
+  { name: "Leads", href: "/sales/leads", icon: Scroll },
+  { name: "Communication", href: "/sales/communication", icon: ChatCircleDots },
 ] as const;
 
 interface ProfileDropdownMobileProps {
   onProfileEdit: () => void;
+  isOnline: boolean;
 }
 
 const ProfileDropdownMobile: FC<ProfileDropdownMobileProps> = ({
   onProfileEdit,
+  isOnline,
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const profile = useSelector((state: RootState) => state.profile);
@@ -98,16 +73,21 @@ const ProfileDropdownMobile: FC<ProfileDropdownMobileProps> = ({
   return (
     <div className="flex items-center gap-2">
       <Button variant="ghost" className="p-1" onClick={onProfileEdit}>
-        <Avatar className="h-8 w-8 rounded-md">
-          <AvatarImage
-            src={profile.profilePic || "/avatar.png"}
-            alt={`${profile.firstName} ${profile.lastName}`}
-          />
-          <AvatarFallback className="rounded-md bg-[#0B4776] text-white">
-            {profile.firstName?.[0]}
-            {profile.lastName?.[0]}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative">
+          <Avatar className="h-8 w-8 rounded-md">
+            <AvatarImage
+              src={profile.profilePic || "/avatar.png"}
+              alt={`${profile.firstName} ${profile.lastName}`}
+            />
+            <AvatarFallback className="rounded-md bg-[#0B4776] text-white">
+              {profile.firstName?.[0]}
+              {profile.lastName?.[0]}
+            </AvatarFallback>
+          </Avatar>
+          {isOnline && (
+            <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>
+          )}
+        </div>
       </Button>
 
       {isAuthenticated && (
@@ -140,9 +120,16 @@ const ProfileDropdownMobile: FC<ProfileDropdownMobileProps> = ({
 export function SalesSidebar() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(false); // Track online status
   const pathname = usePathname();
   const dispatch = useDispatch<AppDispatch>();
   const profile = useSelector((state: RootState) => state.profile);
+  const isAuthenticated = useSelector(
+    (state: RootState) => state.auth.isAuthenticated
+  );
+  const authToken = useSelector(
+    (state: RootState) => state.auth.token?.access.token
+  );
   const { data: userProfile, error, isLoading } = useGetUserProfileQuery();
 
   useEffect(() => {
@@ -154,6 +141,48 @@ export function SalesSidebar() {
       dispatch(setProfile(userProfile));
     }
   }, [userProfile, isLoading, error, dispatch]);
+
+  // Monitor socket connection status
+  useEffect(() => {
+    if (authToken && isAuthenticated) {
+      console.log("Connecting to socket in SalesSidebar");
+      socketService.connect(authToken);
+
+      const socket = socketService.getSocket();
+
+      if (socket) {
+        // Check initial connection status
+        if (socket.connected) {
+          console.log("Socket is already connected on mount in SalesSidebar");
+          setIsOnline(true);
+        }
+
+        socket.on("connect", () => {
+          console.log("Socket connected in SalesSidebar");
+          setIsOnline(true);
+        });
+
+        socket.on("disconnect", () => {
+          console.log("Socket disconnected in SalesSidebar");
+          setIsOnline(false);
+        });
+
+        return () => {
+          socket.off("connect");
+          socket.off("disconnect");
+        };
+      }
+    } else {
+      console.log(
+        "Not authenticated, setting isOnline to false in SalesSidebar"
+      );
+      setIsOnline(false);
+    }
+  }, [authToken, isAuthenticated]);
+
+  useEffect(() => {
+    console.log("isOnline state updated in SalesSidebar:", isOnline);
+  }, [isOnline]);
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -186,6 +215,7 @@ export function SalesSidebar() {
 
         <ProfileDropdownMobile
           onProfileEdit={() => setIsProfileDialogOpen(true)}
+          isOnline={isOnline}
         />
       </div>
 
@@ -257,17 +287,22 @@ export function SalesSidebar() {
             className="flex items-center gap-3 rounded-md bg-white p-3 border border-[#E6E4F0] cursor-pointer hover:bg-gray-50 transition-colors"
             onClick={() => setIsProfileDialogOpen(true)}
           >
-            <Avatar className="h-10 w-10 rounded-md overflow-hidden">
-              <AvatarImage
-                src={profile.profilePic || "/avatar.png"}
-                alt={`${profile.firstName} ${profile.lastName}`}
-                className="rounded-md"
-              />
-              <AvatarFallback className="rounded-md bg-[#0B4776] text-white">
-                {profile.firstName?.[0]}
-                {profile.lastName?.[0]}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative">
+              <Avatar className="h-10 w-10 rounded-md overflow-hidden">
+                <AvatarImage
+                  src={profile.profilePic || "/avatar.png"}
+                  alt={`${profile.firstName} ${profile.lastName}`}
+                  className="rounded-md"
+                />
+                <AvatarFallback className="rounded-md bg-[#0B4776] text-white">
+                  {profile.firstName?.[0]}
+                  {profile.lastName?.[0]}
+                </AvatarFallback>
+              </Avatar>
+              {isOnline && (
+                <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-lg border-2 border-white"></div>
+              )}
+            </div>
             <div className="flex flex-col">
               <span className="text-sm font-medium text-[#53515B]">
                 {profile.firstName} {profile.lastName}

@@ -11,27 +11,27 @@ import Image from "next/image"
 const navigation = [
   {
     name: "My Project",
-    href: "/sale/leads",
+    href: "/sales/leads",
     icon: "/lead.svg",
   },
   {
     name: "Peer Review",
-    href: "/sale/project",
+    href: "/sales/project",
     icon: "/project.svg",
   },
   {
     name: "Communication",
-    href: "/sale/communication",
+    href: "/sales/communication",
     icon: "/chat.svg",
   },
   {
     name: "Payment",
-    href: "/sale/payment",
+    href: "/sales/payment",
     icon: "/rupee.svg",
   },
   {
     name: "Help Center",
-    href: "/sale/security",
+    href: "/sales/security",
     icon: "/security.svg",
   },
 ] as const;

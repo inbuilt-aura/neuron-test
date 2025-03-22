@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLoginEmployeeMutation } from "../store/apiSlice";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux"; // Added useSelector
 import { setCredentials } from "../store/authSlice";
 import {
   setProfile,
@@ -24,6 +24,7 @@ import {
   setProfileError,
 } from "../store/sales/profileSlice";
 import { toast } from "react-hot-toast";
+import type { RootState } from "../store/store"; // Import RootState
 
 export default function EmployeeLoginForm() {
   const [email, setEmail] = useState("");
@@ -33,6 +34,7 @@ export default function EmployeeLoginForm() {
   const router = useRouter();
   const dispatch = useDispatch();
   const [loginEmployee, { isLoading }] = useLoginEmployeeMutation();
+  const authUser = useSelector((state: RootState) => state.auth.user); // For debugging Redux state
 
   useEffect(() => {
     const remembered = localStorage.getItem("rememberMe");
@@ -49,6 +51,9 @@ export default function EmployeeLoginForm() {
 
     try {
       const result = await loginEmployee({ email, password }).unwrap();
+      console.log("API Response:", result); // Log the full response
+      console.log("Designation from API:", result.user.designation); // Log the designation specifically
+
       dispatch(
         setCredentials({
           user: result.user,
@@ -58,6 +63,9 @@ export default function EmployeeLoginForm() {
       );
       dispatch(setProfile(result.user));
 
+      // Log Redux state after dispatch (for debugging)
+      console.log("Redux user after dispatch:", authUser);
+
       if (rememberMe) {
         localStorage.setItem("rememberMe", JSON.stringify({ email }));
       } else {
@@ -66,18 +74,25 @@ export default function EmployeeLoginForm() {
 
       toast.success("Login successful!");
 
-      // Redirect based on designation
-      switch (result.user.designation) {
+      // Redirect based on designation (case-insensitive)
+      const designation = result.user.designation?.toUpperCase(); // Normalize to uppercase
+      console.log("Normalized Designation:", designation); // Log normalized value
+
+      switch (designation) {
         case "MANAGER":
-          router.push("/manager/dashboard");
+          router.push("/manager/projects");
           break;
         case "SALES":
-          router.push("/sale/leads");
+          router.push("/sales/leads");
           break;
         case "RESEARCHER":
           router.push("/researcher/dashboard");
           break;
         default:
+          console.warn(
+            "Unknown designation, redirecting to default:",
+            designation
+          );
           router.push("/employee/dashboard");
       }
     } catch (err) {
@@ -114,7 +129,7 @@ export default function EmployeeLoginForm() {
                 Enter your credentials to access your account
               </CardDescription>
               <h2 className="text-black font-normal text-base">
-                Don&apos;t have an account yet?{" "}
+                Don&#39;t have an account yet?{" "}
                 <span className="font-semibold underline uppercase cursor-pointer">
                   {" "}
                   join us today

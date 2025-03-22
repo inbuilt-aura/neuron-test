@@ -1,7 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
 import type React from "react";
-
 import { useState, useMemo, useEffect } from "react";
 import { BellRing, HelpCircle, Search, MoreVertical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,7 +37,6 @@ import { AddNoteModal } from "@/src/components/reuse_components/add_note";
 import { UpdateQuoteModal } from "@/src/components/reuse_components/update_quote";
 import { AddQuoteModal } from "@/src/components/reuse_components/add_quote";
 import { ProjectDetails } from "@/src/components/reuse_components/project_detail";
-// import Link from "next/link";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/src/store/store";
 import { useAddNoteMutation } from "@/src/store/sales/salesApiSlice";
@@ -52,7 +50,6 @@ import {
 } from "@/src/store/sales/salesApiSlice";
 import { format } from "date-fns";
 import { useGetUserProfileQuery } from "@/src/store/apiSlice";
-// import { useProjectStats, type Stat } from "../hooks/useProjectStats"
 
 type TableConfig<T> = {
   headers: string[];
@@ -66,6 +63,7 @@ type ApiError = {
     message: string;
   };
 };
+
 const tableConfigs: Record<
   string,
   TableConfig<Project | QuoteProject | FastTrackProject | ForwardProject>
@@ -106,15 +104,7 @@ const tableConfigs: Record<
     data: [],
   },
   forward: {
-    headers: [
-      "Sr. No.",
-      "Project Name",
-      // "EDD",
-      "Client Name",
-      // "Researcher Alloted",
-      "Start Date",
-      "Action",
-    ],
+    headers: ["Sr. No.", "Project Name", "Client Name", "Start Date", "Action"],
     data: [],
   },
 };
@@ -144,9 +134,12 @@ export default function ProjectPage() {
   const [addNote] = useAddNoteMutation();
   const [searchQuery, setSearchQuery] = useState("");
   const [isChangingProjectType, setIsChangingProjectType] = useState(false);
+  const [shouldRefetchQuotes, setShouldRefetchQuotes] = useState(false);
+  const [lastModifiedProjectId, setLastModifiedProjectId] = useState<
+    string | null
+  >(null); // Track last modified project
 
   const tableConfig = tableConfigs[selectedCategory];
-
   const [forwardToManager] = useForwardToManagerMutation();
   const [isForwarding, setIsForwarding] = useState(false);
 
@@ -164,31 +157,34 @@ export default function ProjectPage() {
       userId,
       projectType: projectTypeFilter === "simple" ? "REGULAR" : "FAST_TRACK",
     },
-    {
-      skip: selectedCategory !== "forward",
-    }
+    { skip: selectedCategory !== "forward" }
   );
   const { data: fastTrackProjects = [], isLoading: isFastTrackLoading } =
     useFetchFastTrackProjectsQuery(userId, {
       skip: selectedCategory !== "fasttrack",
     });
-  const { data: updatedQuoteProjects = [], isLoading: isUpdatedQuoteLoading } =
-    useFetchUpdatedQuoteProjectsQuery(userId, {
-      skip: selectedCategory !== "quote",
-    });
+  const {
+    data: updatedQuoteProjects = [],
+    isLoading: isUpdatedQuoteLoading,
+    error: quoteError,
+    refetch: refetchQuoteProjects,
+  } = useFetchUpdatedQuoteProjectsQuery(userId, {
+    skip: selectedCategory !== "quote",
+  });
+
   const { data: userProfile, error } = useGetUserProfileQuery();
   const [currentTime, setCurrentTime] = useState(new Date());
-  // set username
   const [userName, setUserName] = useState<string>("");
   const empid =
     useSelector((state: RootState) => state.auth.user?.empid) ?? "N/A";
+  const { stats, refetch: refetchStats } = useProjectStats();
+
   useEffect(() => {
     if (userProfile) {
       setUserName(userProfile.firstName);
     }
   }, [userProfile]);
 
-  // Type guard function to check if the error is of type ApiError
   function isApiError(error: unknown): error is ApiError {
     return (
       typeof error === "object" &&
@@ -202,6 +198,43 @@ export default function ProjectPage() {
     );
   }
 
+  useEffect(() => {
+    if (isUpdatedQuoteLoading) {
+      toast.loading("Fetching quote projects...", { id: "quote-loading" });
+    } else {
+      toast.dismiss("quote-loading");
+    }
+
+    if (quoteError) {
+      toast.error("Failed to load quote projects. Please try again.", {
+        id: "quote-error",
+      });
+      console.error("Quote fetch error:", quoteError);
+    }
+
+    if (updatedQuoteProjects && selectedCategory === "quote") {
+      if (
+        JSON.stringify(updatedQuoteProjects) !==
+        JSON.stringify(tableConfigs.quote.data)
+      ) {
+        tableConfigs.quote.data = updatedQuoteProjects.filter(
+          (project: QuoteProject) => project.status === "IN_PROGRESS"
+        );
+        if (shouldRefetchQuotes) {
+          refetchQuoteProjects();
+          setShouldRefetchQuotes(false);
+        }
+      }
+    }
+  }, [
+    updatedQuoteProjects,
+    isUpdatedQuoteLoading,
+    quoteError,
+    shouldRefetchQuotes,
+    refetchQuoteProjects,
+    selectedCategory,
+  ]);
+
   const handleForwardToManager = async (projectId: string) => {
     if (!userId) {
       toast.error("User ID not found");
@@ -212,16 +245,14 @@ export default function ProjectPage() {
       const result = await forwardToManager({
         userId,
         projectId,
-        managerId: "6", // Hardcoded manager ID as requested
+        managerId: "6",
       }).unwrap();
-
-      // The success case
       toast.success(result.message);
-
-      // Refetch the projects data and stats
       refetchProjects();
       refetchForwardProjects();
       refetchStats();
+      setLastModifiedProjectId(projectId); // Track forwarded project
+      setCurrentPage(1); // Reset to top
     } catch (error) {
       console.error("Error forwarding project:", error);
       if (isApiError(error)) {
@@ -240,18 +271,17 @@ export default function ProjectPage() {
       setIsForwarding(false);
     }
   };
+
   useEffect(() => {
     if (error) {
       toast.error("Failed to fetch user profile. Please try again later.");
     }
   }, [error]);
 
-  //show real-time timing
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-
     return () => clearInterval(timer);
   }, []);
 
@@ -271,11 +301,6 @@ export default function ProjectPage() {
     isChangingProjectType,
   ]);
 
-  // const stats = useProjectStats();
-  const { stats, refetch: refetchStats } = useProjectStats();
-  // const queryClient = useQueryClient() // Add useQueryClient hook
-
-  // Memoize and filter data based on selected category and filters
   const filteredData = useMemo(() => {
     let data;
     if (selectedCategory === "quote") {
@@ -288,26 +313,32 @@ export default function ProjectPage() {
       data = projects;
     }
 
-    const filtered = data.filter(
-      (project: Project | QuoteProject | FastTrackProject | ForwardProject) => {
-        const projectName = project.name.toLowerCase();
-        const clientName =
-          `${project.Client.firstName} ${project.Client.lastName}`.toLowerCase();
-        const query = searchQuery.toLowerCase();
+    const filtered =
+      data?.filter(
+        (
+          project: Project | QuoteProject | FastTrackProject | ForwardProject
+        ) => {
+          const projectName = project.name.toLowerCase();
+          const clientName =
+            `${project.Client.firstName} ${project.Client.lastName}`.toLowerCase();
+          const query = searchQuery.toLowerCase();
+          return projectName.includes(query) || clientName.includes(query);
+        }
+      ) || [];
 
-        return projectName.includes(query) || clientName.includes(query);
-      }
-    );
-
-    // Sort by date in reverse chronological order
+    // Sort: Put lastModifiedProjectId at the top, then sort by createdAt
     return filtered.sort(
       (
         a: Project | QuoteProject | FastTrackProject | ForwardProject,
         b: Project | QuoteProject | FastTrackProject | ForwardProject
       ) => {
+        if (lastModifiedProjectId) {
+          if (a.id.toString() === lastModifiedProjectId) return -1; // Move a to top
+          if (b.id.toString() === lastModifiedProjectId) return 1; // Move b to top
+        }
         const dateA = new Date(a.createdAt).getTime();
         const dateB = new Date(b.createdAt).getTime();
-        return dateB - dateA;
+        return dateB - dateA; // Otherwise sort by createdAt (most recent first)
       }
     );
   }, [
@@ -317,20 +348,17 @@ export default function ProjectPage() {
     fastTrackProjects,
     updatedQuoteProjects,
     searchQuery,
+    lastModifiedProjectId, // Recompute when last modified project changes
   ]);
 
-  // Update the tableConfig with filtered data
   useEffect(() => {
-    tableConfigs.totalclient.data = filteredData; // Update data for totalclient
-    tableConfigs.quote.data = filteredData.filter(
-      (project: QuoteProject) => project.status === "IN_PROGRESS"
-    ); // Update data for quote
+    tableConfigs.totalclient.data = filteredData;
     tableConfigs.fasttrack.data = filteredData.filter(
       (project: FastTrackProject) => project.projectType === "FAST_TRACK"
-    ); // Update data for fasttrack
+    );
     tableConfigs.forward.data = filteredData.filter(
       (project: ForwardProject) => project.managerId === null
-    ); // Update data for forward
+    );
   }, [filteredData]);
 
   const paginatedData = filteredData.slice(
@@ -344,14 +372,16 @@ export default function ProjectPage() {
   const handleCreateProject = () => {
     toast.success("Project created successfully!");
     closeCreateProject();
-    // Refetch the projects data and stats
     refetchProjects();
     refetchForwardProjects();
     refetchStats();
+    setCurrentPage(1); // Reset to page 1 after creating a project
   };
+
   const handleChatClick = () => {
-    router.push("/sale/communication");
+    router.push("/sales/communication");
   };
+
   const handleAddNote = async (note: string) => {
     if (!selectedNoteProjectId) {
       toast.error("No project selected.");
@@ -363,13 +393,13 @@ export default function ProjectPage() {
         projectId: selectedNoteProjectId,
         note,
       }).unwrap();
-
-      console.log("response", response);
-
       if (response) {
         toast.success("Note Added successfully!");
         setIsAddNoteOpen(false);
-        refetchStats(); // Refetch stats after adding a note
+        refetchStats();
+        refetchProjects();
+        setLastModifiedProjectId(selectedNoteProjectId); // Track modified project
+        setCurrentPage(1); // Reset to page 1 to show updated project at the top
       } else {
         toast.error("Failed to Add Note");
       }
@@ -382,7 +412,12 @@ export default function ProjectPage() {
     if (success) {
       toast.success("Quote added successfully");
       setIsQuoteOpen(false);
-      refetchStats(); // Refetch stats after adding a quote
+      refetchStats();
+      refetchProjects();
+      refetchQuoteProjects();
+      setShouldRefetchQuotes(true);
+      setLastModifiedProjectId(selectedQuoteProjectId?.toString() || null); // Track modified project
+      setCurrentPage(1); // Reset to page 1 to show updated project at the top
     } else {
       toast.error("Failed to add quote");
     }
@@ -392,7 +427,12 @@ export default function ProjectPage() {
     if (success) {
       toast.success("Quote updated successfully");
       setIsUpdateQuoteOpen(false);
-      refetchStats(); // Refetch stats after updating a quote
+      refetchStats();
+      refetchProjects();
+      refetchQuoteProjects();
+      setShouldRefetchQuotes(true);
+      setLastModifiedProjectId(selectedQuoteProjectId?.toString() || null); // Track modified project
+      setCurrentPage(1); // Reset to page 1 to show updated project at the top
     } else {
       toast.error("Failed to update quote");
     }
@@ -410,13 +450,15 @@ export default function ProjectPage() {
   const handleAddPayment = (success: boolean) => {
     if (success) {
       toast.success("Payment Added Successfully.");
-      refetchStats(); // Refetch stats after adding a payment
+      refetchStats();
+      refetchProjects();
+      setLastModifiedProjectId(selectedProjectId); // Assuming payment ties to selectedProjectId
+      setCurrentPage(1); // Reset to page 1 to show updated project at the top
     } else {
       toast.error("Payment Failed to Add.");
     }
   };
 
-  // Function to format date as DD/MM/YY
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
@@ -425,12 +467,13 @@ export default function ProjectPage() {
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(event.target.value);
+    setCurrentPage(1); // Reset to page 1 on search
   };
 
   const handleProjectTypeChange = (type: "simple" | "fasttrack") => {
     setIsChangingProjectType(true);
     setProjectTypeFilter(type);
-    // Simulate a delay to show loading state
+    setCurrentPage(1); // Reset to page 1 when changing project type
     setTimeout(() => setIsChangingProjectType(false), 500);
   };
 
@@ -444,7 +487,6 @@ export default function ProjectPage() {
             </h1>
             <h1 className="mt-2 text-sm font-normal text-[#716F6F]">
               Employee ID : {empid} • Time : {format(currentTime, "h:mm a")}
-              {/* Employee ID : 020203 • */}
             </h1>
           </div>
         </div>
@@ -497,8 +539,9 @@ export default function ProjectPage() {
           </div>
         ))}
       </div>
-      <div className="px-4 pb-4 sm:-mr-4">
-        <div className="relative w-full md:w-[25rem] ml-auto">
+
+      <div className="px-4 pb-4 sm:-mr-4 flex justify-end items-center gap-4">
+        <div className="relative w-full md:w-[25rem]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-[#8C8E90]" />
           <Input
             placeholder="Search by project or client name"
@@ -507,7 +550,20 @@ export default function ProjectPage() {
             onChange={handleSearchChange}
           />
         </div>
+        {selectedCategory === "quote" && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              refetchQuoteProjects();
+              toast.success("Quote table refreshed!");
+              setCurrentPage(1); // Reset to page 1 on manual refresh
+            }}
+          >
+            Refresh Quotes
+          </Button>
+        )}
       </div>
+
       {selectedCategory === "forward" && (
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center space-x-2 bg-[#F4F4F5] p-1 rounded-lg">
@@ -705,6 +761,12 @@ export default function ProjectPage() {
                               <DropdownMenuItem
                                 className="cursor-pointer hover:bg-[#F4F3FF]"
                                 onClick={() => {
+                                  console.log(
+                                    "Category:",
+                                    selectedCategory,
+                                    "Project:",
+                                    row
+                                  );
                                   setIsQuoteOpen(true);
                                   setSelectedQuoteProjectId(Number(row.id));
                                 }}
@@ -735,24 +797,39 @@ export default function ProjectPage() {
                                 : "Forward to Manager"}
                             </DropdownMenuItem>
                           )}
-                          {selectedCategory == "totalclient" && (
-                            <DropdownMenuItem
-                              className="cursor-pointer hover:bg-[#F4F3FF]"
-                              onClick={() => setIsPaymentOpen(true)}
-                            >
-                              Add Payment
-                            </DropdownMenuItem>
-                          )}
-                          {selectedCategory == "totalclient" && (
-                            <DropdownMenuItem
-                              className="cursor-pointer hover:bg-[#F4F3FF]"
-                              onClick={() => {
-                                setIsAddNoteOpen(true);
-                                setSelectedNoteProjectId(row.id.toString());
-                              }}
-                            >
-                              Add Note
-                            </DropdownMenuItem>
+                          {selectedCategory === "totalclient" && (
+                            <>
+                              <DropdownMenuItem
+                                className="cursor-pointer hover:bg-[#F4F3FF]"
+                                onClick={() => setIsPaymentOpen(true)}
+                              >
+                                Add Payment
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="cursor-pointer hover:bg-[#F4F3FF]"
+                                onClick={() => {
+                                  console.log(
+                                    "Category:",
+                                    selectedCategory,
+                                    "Project:",
+                                    row
+                                  );
+                                  setIsQuoteOpen(true);
+                                  setSelectedQuoteProjectId(Number(row.id));
+                                }}
+                              >
+                                Add Quote Amount
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="cursor-pointer hover:bg-[#F4F3FF]"
+                                onClick={() => {
+                                  setIsAddNoteOpen(true);
+                                  setSelectedNoteProjectId(row.id.toString());
+                                }}
+                              >
+                                Add Note
+                              </DropdownMenuItem>
+                            </>
                           )}
                           {selectedCategory !== "totalclient" && (
                             <DropdownMenuItem
@@ -772,6 +849,7 @@ export default function ProjectPage() {
           </TableBody>
         </Table>
       </Card>
+
       <div className="border-[1px] border-[#E2E8F0] mt-2 rounded-lg">
         <div className="flex items-center justify-between p-4">
           <Button
@@ -802,6 +880,7 @@ export default function ProjectPage() {
           </Button>
         </div>
       </div>
+
       <CreateProjectModal
         isOpen={isCreateProjectOpen}
         onClose={closeCreateProject}
@@ -812,8 +891,6 @@ export default function ProjectPage() {
         isOpen={isAddNoteOpen}
         onClose={() => setIsAddNoteOpen(false)}
         onSubmit={handleAddNote}
-        // userId={userId}
-        // projectId={selectedNoteProjectId as string}
       />
       <AddQuoteModal
         isOpen={isQuoteOpen}
@@ -822,7 +899,6 @@ export default function ProjectPage() {
         projectId={selectedQuoteProjectId as number}
         onQuoteAdded={handleQuoteAdded}
       />
-
       <UpdateQuoteModal
         isOpen={isUpdateQuoteOpen}
         onClose={() => setIsUpdateQuoteOpen(false)}
@@ -830,7 +906,6 @@ export default function ProjectPage() {
         projectId={selectedQuoteProjectId as number}
         onQuoteUpdated={handleQuoteUpdated}
       />
-
       <AddPayment
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}

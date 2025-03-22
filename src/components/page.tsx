@@ -80,7 +80,7 @@ export default function VerifyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4" >
        <div className="absolute top-4 left-4">
         <Image src="/logo.png" alt="Neuron Logo" width={100} height={33} />
       </div>
