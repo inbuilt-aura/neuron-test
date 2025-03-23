@@ -402,7 +402,8 @@ export default function ManagerChatPage() {
   };
 
   const renderMessage = (message: ChatMessage) => {
-    const isFromManager = message.sent_by.user.role === "MANAGER";
+    const isFromClient = message.sent_by.user.role === "CLIENT";
+    console.log('this message is from', isFromClient ? 'client' : 'company')
 
     switch (message.msg_type) {
       case "text": {
@@ -410,7 +411,7 @@ export default function ManagerChatPage() {
         return (
           <div
             className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-              isFromManager ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+              isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
             }`}
           >
             <p className="text-gray-900 break-words">
@@ -418,13 +419,13 @@ export default function ManagerChatPage() {
             </p>
             <div
               className={`flex items-center gap-1 mt-1 ${
-                isFromManager ? "justify-end" : "justify-start"
+                isFromClient ? "justify-start" : "justify-end"
               }`}
             >
               <span className="text-xs text-gray-500">
                 {formatTime(message.created)}
               </span>
-              {isFromManager && <MessageStatus status={message.status} />}
+              {isFromClient && <MessageStatus status={message.status} />}
             </div>
           </div>
         );
@@ -438,7 +439,7 @@ export default function ManagerChatPage() {
           return (
             <div
               className={`max-w-[60%] rounded-2xl px-4 py-3 ${
-                isFromManager ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+                isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
               }`}
             >
               <p className="text-gray-500 italic">
@@ -446,7 +447,7 @@ export default function ManagerChatPage() {
               </p>
               <div
                 className={`flex items-center gap-1 mt-2 ${
-                  isFromManager ? "justify-end" : "justify-start"
+                  isFromClient ? "justify-start" : "justify-end"
                 }`}
               >
                 <span className="text-xs text-gray-500">
@@ -464,7 +465,7 @@ export default function ManagerChatPage() {
         return (
           <div
             className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-              isFromManager ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+              isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
             }`}
           >
             <div className="bg-white rounded-lg p-3 flex items-center justify-between">
@@ -500,13 +501,13 @@ export default function ManagerChatPage() {
             </div>
             <div
               className={`flex items-center gap-1 mt-2 ${
-                isFromManager ? "justify-end" : "justify-start"
+                isFromClient ? "justify-start" : "justify-end"
               }`}
             >
               <span className="text-xs text-gray-500">
                 {formatTime(message.created)}
               </span>
-              {isFromManager && <MessageStatus status={message.status} />}
+              {isFromClient && <MessageStatus status={message.status} />}
             </div>
           </div>
         );
@@ -517,13 +518,13 @@ export default function ManagerChatPage() {
           return (
             <div
               className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-                isFromManager ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+                isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
               }`}
             >
               <p className="text-gray-500 italic">[File content unavailable]</p>
               <div
                 className={`flex items-center gap-1 mt-2 ${
-                  isFromManager ? "justify-end" : "justify-start"
+                  isFromClient ? "justify-start" : "justify-end"
                 }`}
               >
                 <span className="text-xs text-gray-500">
@@ -543,7 +544,7 @@ export default function ManagerChatPage() {
         return (
           <div
             className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-              isFromManager ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+              isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
             }`}
           >
             <div className="bg-white rounded-lg p-3 flex items-center justify-between">
@@ -575,13 +576,13 @@ export default function ManagerChatPage() {
             </div>
             <div
               className={`flex items-center gap-1 mt-2 ${
-                isFromManager ? "justify-end" : "justify-start"
+                isFromClient ? "justify-start" : "justify-end"
               }`}
             >
               <span className="text-xs text-gray-500">
                 {formatTime(message.created)}
               </span>
-              {isFromManager && <MessageStatus status={message.status} />}
+              {isFromClient && <MessageStatus status={message.status} />}
             </div>
           </div>
         );
@@ -595,7 +596,7 @@ export default function ManagerChatPage() {
           return (
             <div
               className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-                isFromManager ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+                isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
               }`}
             >
               <p className="text-gray-500 italic">
@@ -603,7 +604,7 @@ export default function ManagerChatPage() {
               </p>
               <div
                 className={`flex items-center gap-1 mt-2 ${
-                  isFromManager ? "justify-end" : "justify-start"
+                  isFromClient ? "justify-start" : "justify-end"
                 }`}
               >
                 <span className="text-xs text-gray-500">
@@ -616,7 +617,7 @@ export default function ManagerChatPage() {
         return (
           <div
             className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-              isFromManager ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+              isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
             }`}
           >
             <div className="bg-white bg-opacity-60 w-full rounded-lg px-3 py-2">
@@ -632,13 +633,14 @@ export default function ManagerChatPage() {
             </p>
             <div
               className={`flex items-center gap-1 mt-2 ${
-                isFromManager ? "justify-end" : "justify-start"
+                isFromClient ? "justify-start" : "justify-end"
               }`}
-            >
+            > 
+           
               <span className="text-xs text-gray-500">
                 {formatTime(message.created)}
               </span>
-              {isFromManager && <MessageStatus status={message.status} />}
+              {isFromClient && <MessageStatus status={message.status} />}
             </div>
           </div>
         );
@@ -863,9 +865,9 @@ export default function ManagerChatPage() {
                   <div
                     key={message.id}
                     className={`flex ${
-                      message.sent_by.user.role === "MANAGER"
-                        ? "justify-end"
-                        : "justify-start"
+                      message.sent_by.user.role === "CLIENT"
+                        ? "justify-start"
+                        : "justify-end"
                     }`}
                   >
                     {renderMessage(message)}
