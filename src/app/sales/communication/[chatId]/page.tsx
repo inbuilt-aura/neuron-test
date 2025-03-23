@@ -471,8 +471,8 @@ export default function ChatPage() {
   };
 
   const renderMessage = (message: ChatMessageProps) => {
-    const isFromCurrentUser = message.sent_by._id === auth.user?.id.toString();
-    const isManagerMessage = isFromCurrentUser;
+    const isFromClient = message.sent_by.user.role === 'CLIENT'
+    // const isFromClient = isFromClient;
 
     switch (message.msg_type) {
       case "text": {
@@ -481,7 +481,7 @@ export default function ChatPage() {
           return (
             <div
               className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-                isFromCurrentUser ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+                isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
               }`}
             >
               <p className="text-gray-500 italic">
@@ -489,13 +489,13 @@ export default function ChatPage() {
               </p>
               <div
                 className={`flex items-center gap-1 mt-2 ${
-                  isFromCurrentUser ? "justify-end" : "justify-start"
+                  isFromClient ? "justify-start" : "justify-end"
                 }`}
               >
                 <span className="text-xs text-gray-500">
                   {formatTime(message.created)}
                 </span>
-                {isManagerMessage && (
+                {isFromClient && (
                   <MessageStatus status={message.status} isFromSender={true} />
                 )}
               </div>
@@ -505,19 +505,19 @@ export default function ChatPage() {
         return (
           <div
             className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-              isFromCurrentUser ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+              isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
             }`}
           >
             <p className="text-gray-900 break-words">{textParams.text}</p>
             <div
               className={`flex items-center gap-1 mt-1 ${
-                isFromCurrentUser ? "justify-end" : "justify-start"
+                isFromClient ? "justify-start" : "justify-end"
               }`}
             >
               <span className="text-xs text-gray-500">
                 {formatTime(message.created)}
               </span>
-              {isManagerMessage && (
+              {isFromClient && (
                 <MessageStatus status={message.status} isFromSender={true} />
               )}
             </div>
@@ -530,13 +530,13 @@ export default function ChatPage() {
           return (
             <div
               className={`max-w-[60%] rounded-2xl px-4 py-3 ${
-                isFromCurrentUser ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+                isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
               }`}
             >
               <p className="text-gray-500 italic">[File content unavailable]</p>
               <div
                 className={`flex items-center gap-1 mt-2 ${
-                  isFromCurrentUser ? "justify-end" : "justify-start"
+                  isFromClient ? "justify-start" : "justify-end"
                 }`}
               >
                 <span className="text-xs text-gray-500">
@@ -556,7 +556,7 @@ export default function ChatPage() {
         return (
           <div
             className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-              isFromCurrentUser ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
+              isFromClient ? "bg-[#B6CEE9]" : "bg-[#F2F2F7]"
             }`}
           >
             <div className="bg-white rounded-lg p-3 flex items-center justify-between">
@@ -588,13 +588,13 @@ export default function ChatPage() {
             </div>
             <div
               className={`flex items-center gap-1 mt-2 ${
-                isFromCurrentUser ? "justify-end" : "justify-start"
+                isFromClient ? "justify-start" : "justify-end"
               }`}
             >
               <span className="text-xs text-gray-500">
                 {formatTime(message.created)}
               </span>
-              {isManagerMessage && (
+              {isFromClient && (
                 <MessageStatus status={message.status} isFromSender={true} />
               )}
             </div>
@@ -764,13 +764,13 @@ export default function ChatPage() {
               </div>
             ) : (
               sortedMessages.map((message: ChatMessageProps) => {
-                const isFromCurrentUser =
-                  message.sent_by._id === auth.user?.id.toString();
+                const isFromClient =
+                  message.sent_by.user.role === "CLIENT"
                 return (
                   <div
                     key={message.id}
                     className={`flex ${
-                      isFromCurrentUser ? "justify-end" : "justify-start"
+                      isFromClient ? "justify-start" : "justify-end"
                     }`}
                   >
                     {renderMessage(message)}
